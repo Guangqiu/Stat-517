@@ -1,0 +1,105 @@
+---
+title: "Question 3"
+author: 'Guang Qiu'
+date: "October 26, 2018"
+output: html_document
+---
+
+
+## Read in the file
+```{r}
+library(data.table)
+asci_bible<-read.csv("http://www.webpages.uidaho.edu/~stevel/Datasets/bible_asv.csv",header=TRUE,sep=',')
+head(asci_bible,20)
+#\\d{3}:\\d{3} 
+```
+
+```{r}
+attach(asci_bible)
+text.Book=c()
+for (i in 1:66) {
+  text.Book[i]=paste(text[Books==as.character(unique(Books)[i])],collapse = " ")
+}
+
+asci_bible_Books=data.frame(Books=unique(Books),Testaments=as.factor(c(rep("OT",39),rep("NT",27))), 
+                     Sections=as.factor(c(rep("Law",5),rep("History",12),rep("Wisdom",5),rep("Prophets",17),rep("Gospels",5),rep("Paul",13),rep("Apostles",9))),
+                     text=text.Book)
+
+dim(asci_bible_Books)    #[1] 66  4
+```
+
+## Total number of verses 
+```{r}
+length(asci_bible)
+```
+```{r}
+verse_counts = substring(asci_bible,first = 1,last = 7)
+verse_counts = data.frame(do.call(rbind, strsplit(verse_counts, ":", fixed=TRUE)))
+colnames(verse_counts) = c("Chapter","Verse")
+verse_counts$Chapter = as.numeric(verse_counts$Chapter)
+verse_counts$Verse = as.numeric(verse_counts$Verse)
+unique_chapters = list()
+for (x in 2:length(verse_counts$Chapter)-1){
+  #print(x)
+  if(((verse_counts$Chapter[x]) >= (verse_counts$Chapter[x+1])) && ((verse_counts$Verse[x]) > (verse_counts$Verse[x+1]))){
+    
+    unique_chapters[[length(unique_chapters)+1]] = (verse_counts$Chapter[x])
+  }
+}
+unique_chapters[[length(unique_chapters)+1]] = verse_counts$Chapter[length(verse_counts$Chapter)]
+chapter_numbers = sum(as.numeric(unique_chapters))
+cat("Number of chapters in the asci bible are:",chapter_numbers)
+```
+
+```{r}
+verse_text = substring(asci_bible,first = 9,last = 1000000L)
+verse_text_df = as.data.frame(verse_text)
+verse_numbers = matrix(verse_counts$Verse)
+verse_text_lower = tolower(verse_text)
+```
+
+## Converting the text of all verses into a Corpus using the **tm** package. 
+```{r}
+library(tm)
+verse_corpus = Corpus(VectorSource(verse_text_lower))
+```
+
+```{r}
+verse_corpus_no_punctuation = tm_map(verse_corpus,removePunctuation)
+tdm = TermDocumentMatrix(verse_corpus_no_punctuation,control=list(minWordLength=1))
+print(tdm)
+```
+
+```{r}
+verse_corpus_no_stop = tm_map(verse_corpus_no_punctuation,removeWords,stopwords("english"))
+tdm_stp_punc = TermDocumentMatrix(verse_corpus_no_stop,control=list(minWordLength=1))
+print(tdm_stp_punc)
+```
+```{r}
+verse_corpus_stemed = tm_map(verse_corpus_no_stop,stemDocument)
+print(lapply(verse_corpus_stemed, as.character)[10:15])
+```
+
+```{r}
+tdm_stemed = TermDocumentMatrix(verse_corpus_stemed,control = list(minWordLength=1))
+print(tdm_stemed)
+```
+
+##Finding the 100 most frquent words in the bible.
+```{r}
+tdm_matrix_freq = as.matrix(tdm_stemed)
+freq_word = rowSums(tdm_matrix_freq)
+ord_words = order(freq_word)
+freq_word[tail(ord_words)]
+words_df = data.frame(freq_word[tail(ord_words,n=100)])
+print("The 50 most common words in bible are as below :")
+print(words_df)
+```
+
+```{r}
+library(wordcloud)
+top_100_matrix = (freq_word[tail(ord_words,n=100)])
+wc_count = sort(top_100_matrix)
+word_names = names(top_100_matrix)
+wordcloud(word_names,wc_count)
+```
